@@ -1,0 +1,60 @@
+#!/bin/bash 
+
+# some constants
+kde_meet_presentation_dir=$1
+chat_video_output_dir=$2
+chat_video_width=$3
+chat_video_height=$4
+chat_video_font_face=$5
+chat_video_font_size=$6
+chat_video_tmp_dir=$chat_video_output_dir/tmp
+
+chat_video_size=$chat_video_width"x"$chat_video_height
+
+# create dirs
+mkdir -p $chat_video_output_dir
+mkdir -p $chat_video_tmp_dir
+
+# get presentation duration in seconds
+presentation_duration=$(("$(cat $kde_meet_presentation_dir/metadata.xml | tr -d '\n' | grep -Po -m 1 '<recording>.*<playback>.*<duration>\K.*?(?=</duration>)')" / 1000))
+
+# get chat lines
+chat_lines_xml=$(cat $kde_meet_presentation_dir/slides_new.xml | grep -P '<chattimeline')
+
+#create the images
+chat_text=""
+chat_times="file 'chat_0.png'\nduration "
+index=1
+last_time=0
+IFS=$'\n'
+
+convert -size $chat_video_size xc:white $chat_video_tmp_dir"/chat_0.png"
+
+for item in $chat_lines_xml
+do
+    chat_line_time=$(echo "$item" | grep -Po 'in="\K.*?(?=")')
+    chat_line_name=$(echo "$item" | grep -Po 'name="\K.*?(?=")')
+    chat_line_message=$(echo "$item" | grep -Po 'message="\K.*?(?=")')
+    chat_line="<span face='$chat_video_font_face'><b>"$chat_line_name"</b>:"$'\n'$chat_line_message"</span>"
+    
+    chat_text_filename=$chat_video_tmp_dir"/chat_"$index".png"
+    chat_text=$chat_text$chat_line$'\n'$'\n'
+    chat_times=$chat_times$(($chat_line_time - $last_time))"\nfile 'chat_"$index".png'\nduration "
+    
+    echo "Rendering $chat_text_filename..."
+    
+    convert -background white -fill black -pointsize $chat_video_font_size -size $chat_video_width"x" pango:"$chat_text" $chat_video_tmp_dir"/chat_full.png"
+    
+    composite -gravity south $chat_video_tmp_dir"/chat_full.png" $chat_video_tmp_dir"/chat_0.png" $chat_video_tmp_dir"/chat_"$index".png"
+        
+    index=$(($index+1))
+    last_time=$chat_line_time
+done
+
+chat_times=$chat_times$(($presentation_duration - $last_time))
+
+echo "Saving $chat_video_tmp_dir/times.txt..."
+echo -e $chat_times > $chat_video_tmp_dir/times.txt
+
+echo "Rendering video file $chat_video_output_dir/chat.mp4..."
+ffmpeg -hide_banner -loglevel error -f concat -i $chat_video_tmp_dir"/times.txt" -threads 8 -y -filter_complex "[0:v]fps=24, scale=$chat_video_width:-2[out]" -map '[out]' -strict -2 -crf 22 -pix_fmt yuv420p $chat_video_output_dir/chat.mp4

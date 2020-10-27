@@ -1,0 +1,40 @@
+#!/bin/bash 
+
+# some constants
+kde_meet_output_presentation_dir=$2
+kde_meet_url=https://meet.kde.org/presentation
+kde_meet_presentation_url=$kde_meet_url/$1
+
+# get text based files
+wget $kde_meet_presentation_url/captions.json \
+     $kde_meet_presentation_url/cursor.xml \
+     $kde_meet_presentation_url/deskshare.xml \
+     $kde_meet_presentation_url/metadata.xml \
+     $kde_meet_presentation_url/panzooms.xml \
+     $kde_meet_presentation_url/presentation_text.json \
+     $kde_meet_presentation_url/shapes.svg \
+     $kde_meet_presentation_url/slides_new.xml \
+     -N -nv --show-progress -P $kde_meet_output_presentation_dir
+# get video files
+wget $kde_meet_presentation_url/video/webcams.webm \
+     -N -nv --show-progress -P $kde_meet_output_presentation_dir/video
+wget $kde_meet_presentation_url/deskshare/deskshare.webm \
+     -N -nv --show-progress -P $kde_meet_output_presentation_dir/deskshare
+# get slides
+slides_dir_id=$(cat $kde_meet_output_presentation_dir/shapes.svg | grep -Po -m 1 '<image.*xlink:href="presentation/\K.*?(?=/slide)')
+slides_filenames=$(cat $kde_meet_output_presentation_dir/shapes.svg | grep -Po "<image.*xlink:href=\"presentation/$slides_dir_id/\K.*?(?=\.png)")
+slides_images_urls=""
+slides_text_urls=""
+for item in $slides_filenames
+do
+    slides_images_urls="$slides_images_urls $kde_meet_presentation_url/presentation/$slides_dir_id/$item.png"
+    slides_text_urls="$slides_text_urls $kde_meet_presentation_url/presentation/$slides_dir_id/textfiles/$item.txt"
+done
+wget $slides_images_urls \
+     -N -nv --show-progress -P $kde_meet_output_presentation_dir/presentation/$slides_dir_id
+wget $slides_text_urls \
+     -N -nv --show-progress -P $kde_meet_output_presentation_dir/presentation/$slides_dir_id/textfiles
+# get other files
+wget $kde_meet_presentation_url/presentation/deskshare.png \
+     -N -nv --show-progress -P $kde_meet_output_presentation_dir/presentation
+     
