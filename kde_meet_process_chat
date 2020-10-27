@@ -28,7 +28,10 @@ index=1
 last_time=0
 IFS=$'\n'
 
-convert -size $chat_video_size xc:white $chat_video_tmp_dir"/chat_0.png"
+# for some reason if the image is fully white, ffmpeg skips it,
+# so we draw a pixel on it
+echo "Rendering $chat_video_tmp_dir/chat_0.png"
+convert -size $chat_video_size xc:white -fill '#FFFFFE' -draw 'color 0,0 point' $chat_video_tmp_dir"/chat_0.png"
 
 for item in $chat_lines_xml
 do
@@ -52,9 +55,10 @@ do
 done
 
 chat_times=$chat_times$(($presentation_duration - $last_time))
+chat_times=$chat_times"\nfile 'chat_"$(($index - 1))".png"
 
 echo "Saving $chat_video_tmp_dir/times.txt..."
 echo -e $chat_times > $chat_video_tmp_dir/times.txt
 
 echo "Rendering video file $chat_video_output_dir/chat.mp4..."
-ffmpeg -hide_banner -loglevel error -f concat -i $chat_video_tmp_dir"/times.txt" -threads 8 -y -filter_complex "[0:v]fps=24, scale=$chat_video_width:-2[out]" -map '[out]' -strict -2 -crf 22 -pix_fmt yuv420p $chat_video_output_dir/chat.mp4
+ffmpeg -hide_banner -loglevel error -f concat -i $chat_video_tmp_dir"/times.txt" -threads 8 -y -filter_complex "[0:v]fps=24, format=yuv420p, scale=$chat_video_width:-2[out]" -map '[out]' -strict -2 -crf 22 $chat_video_output_dir/chat.mp4
